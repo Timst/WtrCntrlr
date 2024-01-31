@@ -45,10 +45,16 @@ def main():
     #hue.connect()
     
     global lemon
-    lemon = Plant(name= "Lemon", relay= LED(int(config["Relay"]["GpioPin1"])), sensor_id=config["EcoWitt"]["SoilSensorId1"])
+    lemon = Plant(name= "Lemon", 
+                  relay= LED(int(config["Relay"]["GpioPin1"])), 
+                  sensor_id=config["EcoWitt"]["SoilSensorId1"], 
+                  watering_threshold=int(config["Logic"]["HumidityThresholdPercent1"]))
     
     global orange
-    lemon = Plant(name= "Orange", relay= LED(int(config["Relay"]["GpioPin2"])), sensor_id=config["EcoWitt"]["SoilSensorId2"])
+    lemon = Plant(name= "Orange", 
+                  relay= LED(int(config["Relay"]["GpioPin2"])), 
+                  sensor_id=config["EcoWitt"]["SoilSensorId2"], 
+                  watering_threshold=int(config["Logic"]["HumidityThresholdPercent2"]))
     
     schedule.every().minute.do(check_for_watering)
     schedule.every(5).seconds.do(check_for_leak)
@@ -65,8 +71,8 @@ def check_for_watering():
 def check_plant(plant: Plant):
     humidity = get_humidity_status(plant.sensor_id)
     
-    if humidity <= int(config["Logic"]["HumidityThresholdPercent"]):
-        logging.info("Humidity of " + plant.name + " above threshold (" + config["Logic"]["HumidityThresholdPercent"] + ")")
+    if humidity <= plant.watering_threshold:
+        logging.info("Humidity of " + plant.name + " at " + humidity  + "%, below threshold (" + plant.watering_threshold + "%)")
         if plant.rest_active:
             logging.info("Rest period active, skipping watering")
             plant.rest_period_counter += 1
@@ -103,7 +109,7 @@ def check_for_leak():
      
      if device_info["data"]["last_update"]["water_leak"][config["EcoWitt"]["LeakSensorId"]]["value"] == "1":
         logging.warning("Leak detected!")
-        hue.set_light(int(config["Hue"["SwitchId"]]), 'on', False)
+        hue.set_light(int(config["Hue"]["SwitchId"]), 'on', False)
         lemon.relay.off()
         orange.relay.off()
         exit()
