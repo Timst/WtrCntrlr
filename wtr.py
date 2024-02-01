@@ -51,7 +51,7 @@ def main():
                   watering_threshold=int(config["Logic"]["HumidityThresholdPercent1"]))
     
     global orange
-    lemon = Plant(name= "Orange", 
+    orange = Plant(name= "Orange", 
                   relay= LED(int(config["Relay"]["GpioPin2"])), 
                   sensor_id=config["EcoWitt"]["SoilSensorId2"], 
                   watering_threshold=int(config["Logic"]["HumidityThresholdPercent2"]))
@@ -64,7 +64,6 @@ def main():
         time.sleep(1)
 
 def check_for_watering():
-    global lemon, orange
     check_plant(lemon)
     check_plant(orange)
            
