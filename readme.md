@@ -9,7 +9,7 @@ Besides the GPIO, it interfaces with:
 - Philips Hue, because I have one of their [smart plug](https://www.amazon.com/Philips-Hue-Lights-Bluetooth-Compatible/dp/B07XD578LD), on which the [LED grow light](https://www.amazon.com/dp/B07PLY1WKK) and space heater (no link, I got the cheapest thing at Lowe's) run on a schedule. Here I use it as an emergency stop if a leak is detected.
 
 ## Installation
-If you want to make this run at home (why?), you'll simply need to rename the example.ini config file and put the appropriate IDs and keys. Ecowitt credentials can be created at ecowitt.net. On the first run you'll also need to press the pairing button on your Hue Bridge and uncomment the line that creates the connection. It should work out of the box after that.
+If you want to make this run at home (why?), you'll simply need to rename the example.ini config file to config.ini and put the appropriate IDs and keys. On the first run you'll also need to press the pairing button on your Hue Bridge and uncomment the line that creates the connection. It should work out of the box after that.
 
 ## Future plans
 

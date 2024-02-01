@@ -68,7 +68,7 @@ def check_for_watering():
     check_plant(orange)
            
 def check_plant(plant: Plant):
-    humidity = get_humidity_status(plant.sensor_id)
+    humidity = get_humidity_status(plant)
     
     if humidity <= plant.watering_threshold:
         logging.info("Humidity of " + plant.name + " at " + humidity  + "%, below threshold (" + plant.watering_threshold + "%)")
@@ -92,12 +92,12 @@ def start_watering(plant: Plant):
     
     logging.info("Watering done")
 
-def get_humidity_status(sensor: str):
+def get_humidity_status(plant: Plant):
     device_info = requests.get(url).json()
     
     if device_info["msg"] == "success":
-        soil = device_info["data"]["last_update"][sensor]["soilmoisture"]["value"]
-        logging.info("Soil humidity: " + soil + "%")
+        soil = device_info["data"]["last_update"][plant.sensor_id]["soilmoisture"]["value"]
+        logging.info("Soil humidity of " + plant.name + ": " + soil + "%")
         return int(soil)
     else:
         logging.error("Error fetching ecowitt data: " + device_info["msg"])
