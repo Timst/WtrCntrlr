@@ -93,25 +93,31 @@ def start_watering(plant: Plant):
     logging.info("Watering done")
 
 def get_humidity_status(plant: Plant):
-    device_info = requests.get(url).json()
+    try:
+        device_info = requests.get(url).json()
     
-    if device_info["msg"] == "success":
-        soil = device_info["data"]["last_update"][plant.sensor_id]["soilmoisture"]["value"]
-        logging.info("Soil humidity of " + plant.name + ": " + soil + "%")
-        return int(soil)
-    else:
-        logging.error("Error fetching ecowitt data: " + device_info["msg"])
-        exit()   
+        if device_info["msg"] == "success":
+            soil = device_info["data"]["last_update"][plant.sensor_id]["soilmoisture"]["value"]
+            logging.info("Soil humidity of " + plant.name + ": " + soil + "%")
+            return int(soil)
+        else:
+            logging.error("Error fetching ecowitt data: " + device_info["msg"])
+            exit() 
+    except:
+        logging.warning("Couldn't retrieve " + plant.sensor_id + "  status")   
 
 def check_for_leak():
-     device_info = requests.get(url).json()
-     
-     if device_info["data"]["last_update"]["water_leak"][config["EcoWitt"]["LeakSensorId"]]["value"] == "1":
-        logging.warning("Leak detected!")
-        hue.set_light(int(config["Hue"]["SwitchId"]), 'on', False)
-        lemon.relay.off()
-        orange.relay.off()
-        exit()
+    try:
+        device_info = requests.get(url).json()
+        
+        if device_info["data"]["last_update"]["water_leak"][config["EcoWitt"]["LeakSensorId"]]["value"] == "1":
+            logging.warning("Leak detected!")
+            hue.set_light(int(config["Hue"]["SwitchId"]), 'on', False)
+            lemon.relay.off()
+            orange.relay.off()
+            exit()
+    except:
+        logging.warning("Couldn't retrieve leak sensor status")
         
 if __name__ == '__main__':
     main()
