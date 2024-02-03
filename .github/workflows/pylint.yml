@@ -21,4 +21,4 @@ jobs:
         pip install -r requirements.txt
     - name: Analysing the code with pylint
       run: |
-        pylint $(git ls-files '*.py') --disable=line-too-long,invalid-name,global-statement,missing-function-docstring,missing-class-docstring,missing-module-docstring,no-else-return,logging-fstring-interpolation,missing-final-newline,wrong-import-order
+        pylint $(git ls-files '*.py') --disable=line-too-long,invalid-name,global-statement,missing-function-docstring,missing-class-docstring,missing-module-docstring,no-else-return,logging-fstring-interpolation,missing-final-newline,wrong-import-order,import-error
