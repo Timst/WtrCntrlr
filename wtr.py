@@ -10,13 +10,12 @@ from datetime import datetime
 from pathlib import Path
 
 from plant import Plant
+from ecowitt import LocalEcowitt, NetEcowitt
 
 CONFIG_FILE = "config.ini"
 config = None
 
-ECOWITT_HOST = "https://api.ecowitt.net/api/v3/"
-DEVICE_INFO_URL = "device/info?application_key={appkey}&api_key={apikey}&mac={mac}"
-url = ""
+ecowitt = None
 
 hue = None
 camera = None
@@ -27,15 +26,6 @@ lemon = None
 orange = None
 
 def main():
-    global config
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
-    
-    global url
-    url = ECOWITT_HOST + DEVICE_INFO_URL.format(appkey = config["EcoWitt"]["AppKey"], 
-                                                apikey = config["EcoWitt"]["ApiKey"],
-                                                mac = config["EcoWitt"]["DeviceMac"])
-    
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -45,6 +35,19 @@ def main():
         ]
     )
     
+    global config
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE)
+    
+    global ecowitt
+    if config["EcoWitt"]["Mode"] == "Local":
+        ecowitt = LocalEcowitt(config["EcoWitt"]["IP"])
+    elif config["EcoWitt"]["Mode"] == "Net":
+        ecowitt = NetEcowitt(
+            appkey = config["EcoWitt"]["AppKey"], 
+            apikey = config["EcoWitt"]["ApiKey"],
+            mac = config["EcoWitt"]["DeviceMac"])
+       
     global hue
     hue = Bridge(config["Hue"]["BridgeIp"])
     #Uncomment this line on first run
@@ -75,13 +78,13 @@ def main():
     global lemon
     lemon = Plant(name= "Lemon", 
                   relay= LED(int(config["Relay"]["GpioPinLemon"])), 
-                  sensor_id=config["EcoWitt"]["SoilSensorIdLemon"], 
+                  sensor_channel=config["EcoWitt"]["SoilSensorChannelLemon"], 
                   watering_threshold=int(config["Watering"]["HumidityThresholdPercentLemon"]))
     
     global orange
     orange = Plant(name= "Orange", 
                   relay= LED(int(config["Relay"]["GpioPinOrange"])), 
-                  sensor_id=config["EcoWitt"]["SoilSensorIdOrange"], 
+                  sensor_channel=config["EcoWitt"]["SoilSensorChannelOrange"], 
                   watering_threshold=int(config["Watering"]["HumidityThresholdPercentOrange"]))
     
     schedule.every(int(config["Watering"]["WaterCheckFrequencySeconds"])).seconds.do(check_for_watering)
@@ -97,7 +100,8 @@ def check_for_watering():
     check_plant(orange)
            
 def check_plant(plant: Plant):
-    humidity = get_humidity_status(plant)
+    humidity = ecowitt.get_humidity(plant)
+    logging.info("Soil humidity of " + plant.name + ": " + str(humidity) + "%")
     
     if humidity <= plant.watering_threshold:
         logging.info("Humidity of " + plant.name + " at " + str(humidity)  + "%, at or below threshold (" + str(plant.watering_threshold) + "%)")
@@ -121,26 +125,9 @@ def start_watering(plant: Plant):
     
     logging.info("Watering done")
 
-def get_humidity_status(plant: Plant):
-    try:
-        device_info = requests.get(url).json()
-    
-        if device_info["msg"] == "success":
-            soil = device_info["data"]["last_update"][plant.sensor_id]["soilmoisture"]["value"]
-            logging.info("Soil humidity of " + plant.name + ": " + soil + "%")
-            return int(soil)
-        else:
-            logging.error("Error fetching ecowitt data: " + device_info["msg"])
-            exit() 
-    except:
-        logging.warning("Couldn't retrieve " + plant.sensor_id + "  status")  
-        return 100 
-
 def check_for_leak():
     try:
-        device_info = requests.get(url).json()
-        
-        if device_info["data"]["last_update"]["water_leak"][config["EcoWitt"]["LeakSensorId"]]["value"] == "1":
+        if ecowitt.is_leaking(config["EcoWitt"]["LeakSensorChannel"]):
             logging.warning("Leak detected!")
             hue.set_light(int(config["Hue"]["SwitchId"]), 'on', False)
             lemon.relay.off()
@@ -149,8 +136,7 @@ def check_for_leak():
     except:
         logging.warning("Couldn't retrieve leak sensor status")
 
-def snap_pic():
-    
+def snap_pic():   
     if bool(config["Camera"]["TimeLimit"]):
         start_time = datetime.now().replace(hour=camera_start_time.hour, minute=camera_start_time.minute, second=camera_start_time.second)
         end_time = datetime.now().replace(hour=camera_end_time.hour, minute=camera_end_time.minute, second=camera_end_time.second)
