@@ -1,3 +1,4 @@
+import sys
 import schedule
 import logging
 import time
@@ -128,7 +129,7 @@ def check_for_leak():
         hue.set_light(int(config["Hue"]["SwitchId"]), 'on', False)
         lemon.relay.off()
         orange.relay.off()
-        exit()
+        sys.exit()
 
 def snap_pic():
     if bool(config["Camera"]["TimeLimit"]):

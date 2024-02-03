@@ -59,6 +59,7 @@ class NetEcowitt:
 
 def get_device_info(url):
     try:
-        return requests.get(url).json()
+        return requests.get(url, timeout=30).json()
     except requests.exceptions.RequestException as e:
         logging.error(f"Error fetching ecowitt data: {e}")
+        return None
