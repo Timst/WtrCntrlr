@@ -3,6 +3,8 @@ import schedule
 import logging
 import time
 import configparser
+from glob import glob
+from PIL import Image
 from gpiozero import LED, CPUTemperature
 from phue import Bridge
 from picamera2 import Picamera2
@@ -147,6 +149,19 @@ def snap_pic():
     path = config["Camera"]["Folder"] + "/" + file_name
     camera.capture_file(path)
     logging.info(f"Picture captured and saved to {path}")
+    make_gif()
+    
+def make_gif():
+    frames = [Image.open(image) for image in glob(f"{config['Camera']['Folder']}/*.png")]
+    if len(frames) > 0:
+        frame_one = frames[0]
+        frame_one.save("timelapse.gif", 
+                       format="GIF", 
+                       append_images=frames,
+                       save_all=True, 
+                       duration=100, 
+                       loop=0)
+        logging.info("Generated timelapse")
 
 def check_pi_temp():
     logging.info(f"Pi CPU temperature: {CPUTemperature().temperature}°C")
