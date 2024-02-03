@@ -26,8 +26,12 @@ lemon = None
 orange = None
 
 def main():
+    global config
+    config = configparser.ConfigParser()
+    config.read(CONFIG_FILE)
+
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.getLevelName(config["System"]["Logging"].upper()),
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
             logging.FileHandler("wtr.log"),
@@ -35,14 +39,12 @@ def main():
         ]
     )
 
-    global config
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
-
     global ecowitt
     if config["EcoWitt"]["Mode"] == "Local":
+        logging.info("Creating Ecowitt client in local mode")
         ecowitt = LocalEcowitt(config["EcoWitt"]["IP"])
     elif config["EcoWitt"]["Mode"] == "Net":
+        logging.info("Creating Ecowitt client in net mode")
         ecowitt = NetEcowitt(config["EcoWitt"]["AppKey"], config["EcoWitt"]["ApiKey"], config["EcoWitt"]["DeviceMac"])
 
     global hue

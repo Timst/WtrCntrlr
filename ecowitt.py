@@ -1,3 +1,4 @@
+import json
 import logging
 import requests
 
@@ -42,7 +43,7 @@ class NetEcowitt:
         if device_info["msg"] == "success":
             return int(device_info["data"]["last_update"]["soil_ch" + plant.sensor_channel]["soilmoisture"]["value"])
         else:
-            logging.error(f"Error fetching humidity data of {plant.name}: {device_info['msg']}")
+            logging.error(f"Error fetching humidity data of {plant.name}: {json.dumps(device_info['msg'])}")
             return 100
 
     def is_leaking(self, channel: str) -> bool:
@@ -54,12 +55,13 @@ class NetEcowitt:
         if device_info["msg"] == "success":
             return device_info["data"]["last_update"]["water_leak"]["leak_ch" + channel]["value"] == "1"
         else:
-            logging.error(f"Error fetching leak sensor data on channel #{channel}: {device_info['msg']}")
+            logging.error(f"Error fetching leak sensor data on channel #{channel}: {json.dumps(device_info['msg'])}")
             return False
 
 def get_device_info(url):
+    logging.debug(f"Fetching {url}")
     try:
         return requests.get(url, timeout=30).json()
     except requests.exceptions.RequestException as e:
-        logging.error(f"Error fetching ecowitt data: {e}")
+        logging.error(f"Error fetching {url}: {e}")
         return None
