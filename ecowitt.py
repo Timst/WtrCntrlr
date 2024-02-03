@@ -35,8 +35,7 @@ class NetEcowitt:
             return 100
         else:
             if device_info["msg"] == "success":
-                soil = device_info["data"]["last_update"][plant.sensor_channel]["soilmoisture"]["value"]
-                return int(soil)
+                return int(device_info["data"]["last_update"]["soil_ch" + plant.sensor_channel]["soilmoisture"]["value"])
             else:
                 logging.error("Error fetching humidity data of " + plant.name + ": " + device_info["msg"])
                 return 100
@@ -45,7 +44,7 @@ class NetEcowitt:
         device_info = get_device_info(self.url)
         
         if device_info["msg"] == "success":
-            return device_info["data"]["last_update"]["water_leak"][channel]["value"] == "1"
+            return device_info["data"]["last_update"]["water_leak"]["leak_ch" + channel]["value"] == "1"
         else:
             logging.error("Error fetching leak sensor data on channel #" + channel + ": " + device_info["msg"])
             return False

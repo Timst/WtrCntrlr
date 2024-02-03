@@ -3,7 +3,7 @@ import schedule
 import logging
 import time
 import configparser
-from gpiozero import LED
+from gpiozero import LED, CPUTemperature
 from phue import Bridge
 from picamera2 import Picamera2
 from datetime import datetime
@@ -90,6 +90,7 @@ def main():
     schedule.every(int(config["Watering"]["WaterCheckFrequencySeconds"])).seconds.do(check_for_watering)
     schedule.every(int(config["Watering"]["LeakCheckFrequencySeconds"])).seconds.do(check_for_leak)
     schedule.every(int(config["Camera"]["FrequencySeconds"])).seconds.do(snap_pic)
+    schedule.every(5).minutes.do(check_pi_temp)
     
     while True:
         schedule.run_pending()
@@ -150,6 +151,10 @@ def snap_pic():
     path = config["Camera"]["Folder"] + "/" + file_name
     camera.capture_file(path)
     logging.info("Picture captured and saved to " + path)
+    
+def check_pi_temp():
+    logging.info("Pi CPU temperature: " + str(CPUTemperature().temperature))   
+
         
 if __name__ == '__main__':
     main()
