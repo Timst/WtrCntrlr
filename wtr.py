@@ -5,6 +5,9 @@ import time
 import configparser
 from gpiozero import LED
 from phue import Bridge
+from picamera2 import Picamera2
+from datetime import datetime
+from pathlib import Path
 
 from plant import Plant
 
@@ -16,6 +19,9 @@ DEVICE_INFO_URL = "device/info?application_key={appkey}&api_key={apikey}&mac={ma
 url = ""
 
 hue = None
+camera = None
+camera_start_time = None
+camera_end_time = None
 
 lemon = None
 orange = None
@@ -44,20 +50,43 @@ def main():
     #Uncomment this line on first run
     #hue.connect()
     
+    global camera
+    Path(config["Camera"]["Folder"]).mkdir(exist_ok=True)
+
+    camera = Picamera2()
+    camera_config = camera.create_still_configuration()
+    camera.configure(camera_config)
+    
+    if bool(config["Camera"]["Crop"]):      
+        camera.set_controls({"ScalerCrop":(
+            int(config["Camera"]["X"]), 
+            int(config["Camera"]["Y"]), 
+            int(config["Camera"]["Width"]),
+            int(config["Camera"]["Height"]),
+        )})
+        
+    if bool(config["Camera"]["TimeLimit"]):
+        global camera_start_time, camera_end_time
+        camera_start_time = datetime.strptime(config["Camera"]["StartTime"], "%H:%M:%S")
+        camera_end_time = datetime.strptime(config["Camera"]["EndTime"], "%H:%M:%S")
+            
+    camera.start()
+
     global lemon
     lemon = Plant(name= "Lemon", 
-                  relay= LED(int(config["Relay"]["GpioPin1"])), 
-                  sensor_id=config["EcoWitt"]["SoilSensorId1"], 
-                  watering_threshold=int(config["Logic"]["HumidityThresholdPercent1"]))
+                  relay= LED(int(config["Relay"]["GpioPinLemon"])), 
+                  sensor_id=config["EcoWitt"]["SoilSensorIdLemon"], 
+                  watering_threshold=int(config["Watering"]["HumidityThresholdPercentLemon"]))
     
     global orange
     orange = Plant(name= "Orange", 
-                  relay= LED(int(config["Relay"]["GpioPin2"])), 
-                  sensor_id=config["EcoWitt"]["SoilSensorId2"], 
-                  watering_threshold=int(config["Logic"]["HumidityThresholdPercent2"]))
+                  relay= LED(int(config["Relay"]["GpioPinOrange"])), 
+                  sensor_id=config["EcoWitt"]["SoilSensorIdOrange"], 
+                  watering_threshold=int(config["Watering"]["HumidityThresholdPercentOrange"]))
     
-    schedule.every().minute.do(check_for_watering)
-    schedule.every(5).seconds.do(check_for_leak)
+    schedule.every(int(config["Watering"]["WaterCheckFrequencySeconds"])).seconds.do(check_for_watering)
+    schedule.every(int(config["Watering"]["LeakCheckFrequencySeconds"])).seconds.do(check_for_leak)
+    schedule.every(int(config["Camera"]["FrequencySeconds"])).seconds.do(snap_pic)
     
     while True:
         schedule.run_pending()
@@ -75,7 +104,7 @@ def check_plant(plant: Plant):
         if plant.rest_active:
             logging.info("Rest period active, skipping watering")
             plant.rest_period += 1
-            if plant.rest_period >= int(config["Logic"]["RestPeriodMinutes"]):
+            if plant.rest_period >= int(config["Watering"]["RestPeriodMinutes"]):
                 logging.info("Rest period over")
                 plant.rest_active = False
                 plant.rest_period = 0
@@ -87,7 +116,7 @@ def start_watering(plant: Plant):
     logging.info("Starting watering " + plant.name)
     
     plant.relay.on()
-    time.sleep(int(config["Logic"]["WateringDurationSeconds"]))
+    time.sleep(int(config["Watering"]["WateringDurationSeconds"]))
     plant.relay.off()
     
     logging.info("Watering done")
@@ -119,6 +148,22 @@ def check_for_leak():
             exit()
     except:
         logging.warning("Couldn't retrieve leak sensor status")
+
+def snap_pic():
+    
+    if bool(config["Camera"]["TimeLimit"]):
+        start_time = datetime.now().replace(hour=camera_start_time.hour, minute=camera_start_time.minute, second=camera_start_time.second)
+        end_time = datetime.now().replace(hour=camera_end_time.hour, minute=camera_end_time.minute, second=camera_end_time.second)
+        now = datetime.now()
+        
+        if now < start_time or now > end_time:
+            logging.info("Outside of camera operating hours, skipping capture")
+            return
+           
+    file_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.png")
+    path = config["Camera"]["Folder"] + "/" + file_name
+    camera.capture_file(path)
+    logging.info("Picture captured and saved to " + path)
         
 if __name__ == '__main__':
     main()
