@@ -71,20 +71,20 @@ def check_plant(plant: Plant):
     humidity = get_humidity_status(plant)
     
     if humidity <= plant.watering_threshold:
-        logging.info("Humidity of " + plant.name + " at " + humidity  + "%, below threshold (" + plant.watering_threshold + "%)")
+        logging.info("Humidity of " + plant.name + " at " + str(humidity)  + "%, at or below threshold (" + str(plant.watering_threshold) + "%)")
         if plant.rest_active:
             logging.info("Rest period active, skipping watering")
-            plant.rest_period_counter += 1
-            if plant.rest_period_counter >= int(config["Logic"]["RestPeriodMinutes"]):
+            plant.rest_period += 1
+            if plant.rest_period >= int(config["Logic"]["RestPeriodMinutes"]):
                 logging.info("Rest period over")
                 plant.rest_active = False
-                plant.rest_period_counter = 0
+                plant.rest_period = 0
         else:
             start_watering(plant)
             plant.rest_active = True
     
 def start_watering(plant: Plant):
-    logging.info("Starting watering" + plant.name)
+    logging.info("Starting watering " + plant.name)
     
     plant.relay.on()
     time.sleep(int(config["Logic"]["WateringDurationSeconds"]))
@@ -104,7 +104,8 @@ def get_humidity_status(plant: Plant):
             logging.error("Error fetching ecowitt data: " + device_info["msg"])
             exit() 
     except:
-        logging.warning("Couldn't retrieve " + plant.sensor_id + "  status")   
+        logging.warning("Couldn't retrieve " + plant.sensor_id + "  status")  
+        return 100 
 
 def check_for_leak():
     try:
