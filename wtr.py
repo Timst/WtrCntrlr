@@ -55,26 +55,28 @@ def main():
     #hue.connect()
 
     global camera
-    Path(config["Camera"]["Folder"]).mkdir(exist_ok=True)
+    if config["Camera"]["Enable"] == "True":
+        logging.info("Camera enabled")
+        Path(config["Camera"]["Folder"]).mkdir(exist_ok=True)
 
-    camera = Picamera2()
-    camera_config = camera.create_still_configuration()
-    camera.configure(camera_config)
+        camera = Picamera2()
+        camera_config = camera.create_still_configuration()
+        camera.configure(camera_config)
 
-    if bool(config["Camera"]["Crop"]):
-        camera.set_controls({"ScalerCrop":(
-            int(config["Camera"]["X"]),
-            int(config["Camera"]["Y"]),
-            int(config["Camera"]["Width"]),
-            int(config["Camera"]["Height"]),
-        )})
+        if config["Camera"]["Crop"] == "True":
+            camera.set_controls({"ScalerCrop":(
+                int(config["Camera"]["X"]),
+                int(config["Camera"]["Y"]),
+                int(config["Camera"]["Width"]),
+                int(config["Camera"]["Height"]),
+            )})
 
-    if bool(config["Camera"]["TimeLimit"]):
-        global camera_start_time, camera_end_time
-        camera_start_time = datetime.strptime(config["Camera"]["StartTime"], "%H:%M:%S")
-        camera_end_time = datetime.strptime(config["Camera"]["EndTime"], "%H:%M:%S")
+        if config["Camera"]["TimeLimit"] == "True":
+            global camera_start_time, camera_end_time
+            camera_start_time = datetime.strptime(config["Camera"]["StartTime"], "%H:%M:%S")
+            camera_end_time = datetime.strptime(config["Camera"]["EndTime"], "%H:%M:%S")
 
-    camera.start()
+        camera.start()
 
     global lemon
     lemon = Plant(name= "Lemon",
@@ -90,8 +92,9 @@ def main():
 
     schedule.every(int(config["Watering"]["WaterCheckFrequencySeconds"])).seconds.do(check_for_watering)
     schedule.every(int(config["Watering"]["LeakCheckFrequencySeconds"])).seconds.do(check_for_leak)
-    schedule.every(int(config["Camera"]["FrequencySeconds"])).seconds.do(snap_pic)
     schedule.every(5).minutes.do(check_pi_temp)
+    if camera is not None:
+        schedule.every(int(config["Camera"]["FrequencySeconds"])).seconds.do(snap_pic)
 
     while True:
         schedule.run_pending()
@@ -136,7 +139,7 @@ def check_for_leak():
         sys.exit()
 
 def snap_pic():
-    if bool(config["Camera"]["TimeLimit"]):
+    if config["Camera"]["TimeLimit"] == "True":
         start_time = datetime.now().replace(hour=camera_start_time.hour, minute=camera_start_time.minute, second=camera_start_time.second)
         end_time = datetime.now().replace(hour=camera_end_time.hour, minute=camera_end_time.minute, second=camera_end_time.second)
         now = datetime.now()
@@ -150,16 +153,16 @@ def snap_pic():
     camera.capture_file(path)
     logging.info(f"Picture captured and saved to {path}")
     make_gif()
-    
+
 def make_gif():
     frames = [Image.open(image) for image in glob(f"{config['Camera']['Folder']}/*.png")]
     if len(frames) > 0:
         frame_one = frames[0]
-        frame_one.save("timelapse.gif", 
-                       format="GIF", 
+        frame_one.save("timelapse.gif",
+                       format="GIF",
                        append_images=frames,
-                       save_all=True, 
-                       duration=100, 
+                       save_all=True,
+                       duration=100,
                        loop=0)
         logging.info("Generated timelapse")
 
