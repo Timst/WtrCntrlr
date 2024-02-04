@@ -1,3 +1,4 @@
+import json
 import sys
 import schedule
 import logging
@@ -5,8 +6,8 @@ import time
 import configparser
 from glob import glob
 from PIL import Image
+from pyemvue import PyEmVue, device
 from gpiozero import LED, CPUTemperature
-from phue import Bridge
 from picamera2 import Picamera2
 from datetime import datetime
 from pathlib import Path
@@ -15,17 +16,22 @@ from plant import Plant
 from ecowitt import LocalEcowitt, NetEcowitt
 
 CONFIG_FILE = "config.ini"
+EMPORIA_KEY_FILE = "emporia_keys.json"
 config = None
 
 ecowitt = None
 
-hue = None
-camera = None
-camera_start_time = None
-camera_end_time = None
+vue: PyEmVue = None
+heater_plug: device  = None
+lamp_plug: device  = None
+humidifier_plug: device  = None
 
-lemon = None
-orange = None
+camera: Picamera2 = None
+camera_start_time: datetime = None
+camera_end_time: datetime = None
+
+lemon: Plant = None
+orange: Plant = None
 
 def main():
     global config
@@ -47,12 +53,28 @@ def main():
         ecowitt = LocalEcowitt(config["EcoWitt"]["IP"])
     elif config["EcoWitt"]["Mode"] == "Net":
         logging.info("Creating Ecowitt client in net mode")
-        ecowitt = NetEcowitt(config["EcoWitt"]["AppKey"], config["EcoWitt"]["ApiKey"], config["EcoWitt"]["DeviceMac"])
+        ecowitt = NetEcowitt(
+            app_key=config["EcoWitt"]["AppKey"],
+            api_key=config["EcoWitt"]["ApiKey"],
+            device_mac=config["EcoWitt"]["DeviceMac"])
 
-    global hue
-    hue = Bridge(config["Hue"]["BridgeIp"])
-    #Uncomment this line on first run
-    #hue.connect()
+    global vue, heater_plug, lamp_plug, humidifier_plug
+    vue = PyEmVue()
+    with open(EMPORIA_KEY_FILE) as f:
+        emporia_keys = json.load(f)
+
+    if vue.login(id_token=emporia_keys['id_token'],
+        access_token=emporia_keys['access_token'],
+        refresh_token=emporia_keys['refresh_token'],
+        token_storage_file=EMPORIA_KEY_FILE):
+
+        devices = vue.get_devices()
+
+        heater_plug = next(filter(lambda x: x.manufacturer_id == config["Emporia"]["HeaterPlugId"], devices)).outlet
+        lamp_plug = next(filter(lambda x: x.manufacturer_id == config["Emporia"]["LampPlugId"], devices)).outlet
+        humidifier_plug = next(filter(lambda x: x.manufacturer_id == config["Emporia"]["HumidifierPlugId"], devices)).outlet
+    else:
+        logging.error("Couldn't login to Emporia, check emporia_keys.json file")
 
     global camera
     if config["Camera"]["Enable"] == "True":
@@ -132,10 +154,15 @@ def start_watering(plant: Plant):
 
 def check_for_leak():
     if ecowitt.is_leaking(config["EcoWitt"]["LeakSensorChannel"]):
-        logging.warning("Leak detected!")
-        hue.set_light(int(config["Hue"]["SwitchId"]), 'on', False)
+        logging.fatal("Leak detected!")
+
         lemon.relay.off()
         orange.relay.off()
+
+        vue.update_outlet(heater_plug, on=False)
+        vue.update_outlet(lamp_plug, on=False)
+        vue.update_outlet(humidifier_plug, on=False)
+
         sys.exit()
 
 def snap_pic():

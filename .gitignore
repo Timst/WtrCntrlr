@@ -161,5 +161,6 @@ cython_debug/
 
 config.ini
 timelapse.gif
+emporia_keys.json
 
 pics/
