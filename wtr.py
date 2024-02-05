@@ -32,6 +32,7 @@ camera_end_time: datetime = None
 
 lemon: Plant = None
 orange: Plant = None
+lime: Plant = None
 
 def main():
     global config
@@ -60,7 +61,7 @@ def main():
 
     global vue, heater_plug, lamp_plug, humidifier_plug
     vue = PyEmVue()
-    with open(EMPORIA_KEY_FILE) as f:
+    with open(EMPORIA_KEY_FILE, encoding="us-ascii") as f:
         emporia_keys = json.load(f)
 
     if vue.login(id_token=emporia_keys['id_token'],
@@ -100,17 +101,21 @@ def main():
 
         camera.start()
 
-    global lemon
+    global lemon, orange, lime
     lemon = Plant(name= "Lemon",
                   relay= LED(int(config["Relay"]["GpioPinLemon"])),
                   sensor_channel=config["EcoWitt"]["SoilSensorChannelLemon"],
                   watering_threshold=int(config["Watering"]["HumidityThresholdPercentLemon"]))
 
-    global orange
     orange = Plant(name= "Orange",
                   relay= LED(int(config["Relay"]["GpioPinOrange"])),
                   sensor_channel=config["EcoWitt"]["SoilSensorChannelOrange"],
                   watering_threshold=int(config["Watering"]["HumidityThresholdPercentOrange"]))
+
+    lime = Plant(name= "Lime",
+                  relay= LED(int(config["Relay"]["GpioPinLime"])),
+                  sensor_channel=config["EcoWitt"]["SoilSensorChannelLime"],
+                  watering_threshold=int(config["Watering"]["HumidityThresholdPercentLime"]))
 
     schedule.every(int(config["Watering"]["WaterCheckFrequencySeconds"])).seconds.do(check_for_watering)
     schedule.every(int(config["Watering"]["LeakCheckFrequencySeconds"])).seconds.do(check_for_leak)
@@ -125,6 +130,7 @@ def main():
 def check_for_watering():
     check_plant(lemon)
     check_plant(orange)
+    check_plant(lime)
 
 def check_plant(plant: Plant):
     humidity = ecowitt.get_humidity(plant)
