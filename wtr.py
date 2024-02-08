@@ -5,7 +5,7 @@ import logging
 import time
 import configparser
 from glob import glob
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from pyemvue import PyEmVue, device
 from gpiozero import LED, CPUTemperature
 from picamera2 import Picamera2
@@ -26,9 +26,13 @@ heater_plug: device  = None
 lamp_plug: device  = None
 humidifier_plug: device  = None
 
-camera: Picamera2 = None
+wide_camera: Picamera2 = None
+closeup_camera: Picamera2 = None
 camera_start_time: datetime = None
 camera_end_time: datetime = None
+caption_font: ImageFont = ImageFont.truetype('DejaVuSans.ttf', 40)
+wide_folder: str = ""
+closeup_folder: str = ""
 
 lemon: Plant = None
 orange: Plant = None
@@ -77,17 +81,25 @@ def main():
     else:
         logging.error("Couldn't login to Emporia, check emporia_keys.json file")
 
-    global camera
+    global wide_camera, closeup_camera, wide_folder, closeup_folder
     if config["Camera"]["Enable"] == "True":
         logging.info("Camera enabled")
         Path(config["Camera"]["Folder"]).mkdir(exist_ok=True)
+        wide_folder = config["Camera"]["Folder"] + "/" + config["Camera"]["WideAngleSubfolder"]
+        Path(wide_folder).mkdir(exist_ok=True)
+        closeup_folder = config["Camera"]["Folder"] + "/" + config["Camera"]["CloseupSubfolder"]
+        Path(closeup_folder).mkdir(exist_ok=True)
 
-        camera = Picamera2()
-        camera_config = camera.create_still_configuration()
-        camera.configure(camera_config)
+        wide_camera = Picamera2(int(config["Camera"]["WideAngleId"]))
+        wide_camera_config = wide_camera.create_still_configuration(controls={"Sharpness":3.0, "HdrMode":1})
+        wide_camera.configure(wide_camera_config)
+
+        closeup_camera = Picamera2(int(config["Camera"]["CloseupId"]))
+        closeup_camera_config = closeup_camera.create_still_configuration(controls={"Sharpness":3.0})
+        closeup_camera.configure(closeup_camera_config)
 
         if config["Camera"]["Crop"] == "True":
-            camera.set_controls({"ScalerCrop":(
+            closeup_camera.set_controls({"ScalerCrop":(
                 int(config["Camera"]["X"]),
                 int(config["Camera"]["Y"]),
                 int(config["Camera"]["Width"]),
@@ -99,7 +111,8 @@ def main():
             camera_start_time = datetime.strptime(config["Camera"]["StartTime"], "%H:%M:%S")
             camera_end_time = datetime.strptime(config["Camera"]["EndTime"], "%H:%M:%S")
 
-        camera.start()
+        wide_camera.start()
+        closeup_camera.start()
 
     global lemon, orange, lime
     lemon = Plant(name= "Lemon",
@@ -120,8 +133,8 @@ def main():
     schedule.every(int(config["Watering"]["WaterCheckFrequencySeconds"])).seconds.do(check_for_watering)
     schedule.every(int(config["Watering"]["LeakCheckFrequencySeconds"])).seconds.do(check_for_leak)
     schedule.every(5).minutes.do(check_pi_temp)
-    if camera is not None:
-        schedule.every(int(config["Camera"]["FrequencySeconds"])).seconds.do(snap_pic)
+    if wide_camera is not None and closeup_camera is not None:
+        schedule.every(int(config["Camera"]["FrequencySeconds"])).seconds.do(snap_pics)
 
     while True:
         schedule.run_pending()
@@ -171,7 +184,7 @@ def check_for_leak():
 
         sys.exit()
 
-def snap_pic():
+def snap_pics():
     if config["Camera"]["TimeLimit"] == "True":
         start_time = datetime.now().replace(hour=camera_start_time.hour, minute=camera_start_time.minute, second=camera_start_time.second)
         end_time = datetime.now().replace(hour=camera_end_time.hour, minute=camera_end_time.minute, second=camera_end_time.second)
@@ -181,21 +194,39 @@ def snap_pic():
             logging.info("Outside of camera operating hours, skipping capture")
             return
 
-    file_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S.png")
-    path = config["Camera"]["Folder"] + "/" + file_name
-    camera.capture_file(path)
-    logging.info(f"Picture captured and saved to {path}")
-    make_gif()
+    time = datetime.now()
+    file_name = time.strftime("%Y-%m-%d_%H-%M-%S.png")
+    caption = time.strftime("%Y-%m-%d %H:%M:%S")
 
-def make_gif():
-    frames = [Image.open(image) for image in glob(f"{config['Camera']['Folder']}/*.png")]
+    wide_shot = wide_camera.capture_image("main")
+    wide_shot = wide_shot.transpose(method=Image.Transpose.ROTATE_180)
+    wide_text = ImageDraw.Draw(wide_shot)
+    wide_text.text((wide_shot.width - 450, wide_shot.height - 70), caption, font=caption_font, fill=(65, 185, 210))
+
+    wide_path = wide_folder + "/" +  file_name
+    wide_shot.save(wide_path)
+    logging.info(f"Wide angle picture captured and saved to {wide_path}")
+
+    closeup_shot = closeup_camera.capture_image("main")
+    closeup_text = ImageDraw.Draw(closeup_shot)
+    closeup_text.text((closeup_shot.width - 450, closeup_shot.height - 70), caption, font=caption_font, fill=(65, 185, 210))
+
+    closeup_path = closeup_folder + "/" +  file_name
+    closeup_shot.save(closeup_path)
+    logging.info(f"Closeup picture captured and saved to {closeup_path}")
+
+    make_gif(wide_folder)
+    make_gif(closeup_folder)
+
+def make_gif(folder: str):
+    frames = [Image.open(image) for image in glob(f"{folder}/*.png")]
     if len(frames) > 0:
         frame_one = frames[0]
-        frame_one.save("timelapse.gif",
+        frame_one.save(f"{folder}/timelapse.gif",
                        format="GIF",
                        append_images=frames,
                        save_all=True,
-                       duration=100,
+                       duration=200,
                        loop=0)
         logging.info("Generated timelapse")
 
